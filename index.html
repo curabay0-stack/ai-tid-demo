@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI TİD - İşaret Dili Tanıma</title>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: url('https://i3.wp.com/images.pond5.com/blue-white-gradient-polygonal-surface-073466103_prevstill.jpeg?ssl=1') no-repeat center center fixed;
+            background-size: cover;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(2px);
+        }
+        .container {
+            background: rgba(255,255,255,0.85);
+            border-radius: 20px;
+            padding: 32px 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+            max-width: 400px;
+            width: 100%;
+        }
+        h1 {
+            margin: 0;
+            font-size: 2rem;
+            color: #222;
+            letter-spacing: 1px;
+        }
+        #video {
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            width: 320px;
+            height: 240px;
+            background: #222;
+            object-fit: cover;
+        }
+        #recognized {
+            min-height: 40px;
+            font-size: 1.3rem;
+            color: #0078d7;
+            background: #f3f3f3;
+            border-radius: 8px;
+            padding: 8px 16px;
+            margin-top: 8px;
+            text-align: center;
+            letter-spacing: 1px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        @media (max-width: 500px) {
+            .container {
+                padding: 16px 4px;
+                max-width: 98vw;
+            }
+            #video {
+                width: 95vw;
+                height: 56vw;
+                max-width: 320px;
+                max-height: 240px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI TİD</h1>
+        <video id="video" autoplay playsinline></video>
+        <div id="recognized">Tanınan işaretler burada görünecek</div>
+    </div>
+    <!-- MediaPipe ve TensorFlow.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script>
+        // Kamerayı başlat
+        const videoElement = document.getElementById('video');
+        const recognizedDiv = document.getElementById('recognized');
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoElement.srcObject = stream;
+            } catch (err) {
+                recognizedDiv.textContent = 'Kamera erişimi reddedildi!';
+            }
+        }
+        startCamera();
+
+        // MediaPipe Hands ile el takibi
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+
+        hands.onResults(onResults);
+
+        // Kamera'dan MediaPipe'a video gönder
+        let camera;
+        videoElement.onloadedmetadata = () => {
+            camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    await hands.send({image: videoElement});
+                },
+                width: 320,
+                height: 240
+            });
+            camera.start();
+        };
+
+        // Basit işaret tanıma (örnek: sadece yumruk ve açık el)
+        function onResults(results) {
+            if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+                recognizedDiv.textContent = 'El algılanmadı';
+                return;
+            }
+            const landmarks = results.multiHandLandmarks[0];
+            // Basit örnek: başparmak ve işaret parmağı uçları arasındaki mesafeye bak
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+            const dist = Math.sqrt(
+                Math.pow(thumbTip.x - indexTip.x, 2) +
+                Math.pow(thumbTip.y - indexTip.y, 2)
+            );
+            if (dist < 0.07) {
+                recognizedDiv.textContent = '👊 Yumruk';
+            } else if (dist > 0.15) {
+                recognizedDiv.textContent = '🖐️ Açık El';
+            } else {
+                recognizedDiv.textContent = '🤚 Tanımlanamayan İşaret';
+            }
+        }
+    </script>
+</body>
+</html>
